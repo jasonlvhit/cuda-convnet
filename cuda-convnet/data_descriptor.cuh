@@ -1,5 +1,5 @@
-#ifndef DATA_CUH_
-#define DATA_CUH_
+#ifndef DATA_DESCRIPTOR_CUH_
+#define DATA_DESCRIPTOR_CUH_
 
 #include <vector>
 
@@ -59,4 +59,4 @@ struct cnnMaxPoolingLayerDataDescriptor :public cnnBaseDataDescriptor
 	{}
 };
 
-#endif // DATA_CUH_
+#endif // DATA_DESCRIPTOR_CUH_
