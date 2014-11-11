@@ -16,18 +16,13 @@ __global__ void cnnFullyConnectedLayerForward(const float *input,
 	__shared__ float cache[threadsPerBlock];
 	int cacheIndex = threadIdx.x;
 
-	if (cacheIndex < in_area){
+	if (cacheIndex < in_area)
 		cache[cacheIndex] = input[cacheIndex] * W[blockIdx.x * in_area + cacheIndex];
-	}
-	else{
+	else
 		cache[cacheIndex] = 0;
-	}
-
-	// synchronize threads in this block
+	
 	__syncthreads();
 
-	// for reductions, threadsPerBlock must be a power of 2
-	// because of the following code
 	int i = blockDim.x / 2;
 	while (i != 0) {
 		if (cacheIndex < i)
@@ -42,38 +37,6 @@ __global__ void cnnFullyConnectedLayerForward(const float *input,
 	}
 }
 
-
-
-__global__ void compute_err_terms(const float* input, const float* W, 
-	const float* next_err_terms, float* err_terms){
-	__shared__ float cache[threadsPerBlock];
-	int cacheIndex = threadIdx.x;
-
-	if (cacheIndex < out_area){
-		cache[cacheIndex] = next_err_terms[cacheIndex] * W[blockIdx.x + in_area * cacheIndex];
-	}
-	else{
-		cache[cacheIndex] = 0;
-	}
-
-	// synchronize threads in this block
-	__syncthreads();
-
-	// for reductions, threadsPerBlock must be a power of 2
-	// because of the following code
-	int i = blockDim.x / 2;
-	while (i != 0) {
-		if (cacheIndex < i)
-			cache[cacheIndex] += cache[cacheIndex + i];
-		__syncthreads();
-		i /= 2;
-	}
-
-	if (cacheIndex == 0) {
-		// sigmod derivative: f_x * (1.0 - f_x)
-		err_terms[blockIdx.x] = input[blockIdx.x] * (1.0 - input[blockIdx.x]) * cache[0];
-	}
-}
 
 //void back_prop(){
 //	/*
@@ -101,14 +64,40 @@ __global__ void compute_err_terms(const float* input, const float* W,
 
 __constant__ float alpha, lambda;
 
-__global__ void cnnFullyConnectedLayerBackProp(const float* input, float* W, float* b, 
+__global__ void cnnFullyConnectedLayerBackProp(const float* input, float* W, float* b,
 	float* next_err_terms){
 	__shared__ float cache[threadsPerBlock];
 	if (threadIdx.x < in_area && blockIdx.x < out_area){
-		W[threadIdx.x + blockIdx.x * in_area] += alpha * 
+		W[threadIdx.x + blockIdx.x * in_area] += alpha *
 			next_err_terms[blockIdx.x] * input[threadIdx.x];
 	}
 	b[blockIdx.x] += next_err_terms[blockIdx.x] / out_area;
+}
+
+__global__ void compute_err_terms(const float* input, const float* W, 
+	const float* next_err_terms, float* err_terms){
+	__shared__ float cache[threadsPerBlock];
+	int cacheIndex = threadIdx.x;
+
+	if (cacheIndex < out_area)
+		cache[cacheIndex] = next_err_terms[cacheIndex] * W[blockIdx.x + in_area * cacheIndex];
+	else
+		cache[cacheIndex] = 0;
+
+	__syncthreads();
+	
+	int i = blockDim.x / 2;
+	while (i != 0) {
+		if (cacheIndex < i)
+			cache[cacheIndex] += cache[cacheIndex + i];
+		__syncthreads();
+		i /= 2;
+	}
+
+	if (cacheIndex == 0) {
+		// sigmod derivative: f_x * (1.0 - f_x)
+		err_terms[blockIdx.x] = input[blockIdx.x] * (1.0 - input[blockIdx.x]) * cache[0];
+	}
 }
 
 __global__ void cnnConvolutionalLayerForward(){}
