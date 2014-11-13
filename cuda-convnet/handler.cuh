@@ -11,6 +11,14 @@
 #define threadsPerBlock 1024
 __constant__ int out_area, in_area;
 
+__device__ float sigmod(float x){
+	return 1.0 / (1.0 + expf(-x));
+}
+
+__device__ float df_sigmod(float x){
+	return x * (1.0 - x);
+}
+
 __global__ void cnnFullyConnectedLayerForward(const float *input,
 	const float *W, const float *b, float *output) {
 	__shared__ float cache[threadsPerBlock];
@@ -163,9 +171,105 @@ __global__ void convolution(const float* input, const float* W, float * output){
 	}
 }
 
-__global__ void cnnConvolutionalLayerBackProp(){}
+//void back_prop(){
+//	g_.clear();
+//	g_.resize(in_width_ * in_height_ * in_depth_);
+//	/*update err terms of this layer.*/
+//	for (size_t out = 0; out < out_depth_; out++){
+//		for (size_t in = 0; in < in_depth_; in++){
+//			for (size_t w_ = 0; w_ < out_width_; w_++){
+//				for (size_t h_ = 0; h_ < out_height_; h_++){
+//					for (size_t y_ = 0; y_ < kernel_size_; y_++){
+//						for (size_t x_ = 0; x_ < kernel_size_; x_++){
+//							auto ff = in * in_width_ * in_height_ + (h_ + y_) *
+//								in_width_ + (x_ + w_);
+//							g_[ff] += /*next layer err terms*/
+//								this->next->g_[out * out_width_ *
+//								out_height_ + h_ * out_width_ + w_] *
+//								/*weight*/
+//								W_[in * out_depth_ * kernel_size_ * kernel_size_ +
+//								out * kernel_size_ * kernel_size_ +
+//								kernel_size_ * (kernel_size_ - y_ - 1) +
+//								(kernel_size_ - 1 - x_)] *
+//								/*df of input*/
+//								df_sigmod(input_[ff]);
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
+//
+//	/*update weight*/
+//	for (size_t out = 0; out < out_depth_; out++){
+//		for (size_t in = 0; in < in_depth_; in++){
+//			for (size_t h_ = 0; h_ < out_height_; h_++){
+//				for (size_t w_ = 0; w_ < out_height_; w_++){
+//					auto tt = getb_(out, h_, w_);
+//					for (size_t y_ = 0; y_ < kernel_size_; y_++){
+//						for (size_t x_ = 0; x_ < kernel_size_; x_++){
+//							/*find update pixel*/
+//							auto target = in * out_depth_ * kernel_size_ * kernel_size_ +
+//								out * kernel_size_ * kernel_size_ +
+//								kernel_size_ * (kernel_size_ - y_ - 1) +
+//								(kernel_size_ - 1 - x_);
+//							/*cal delta*/
+//							auto delta = /*learning rate*/
+//								alpha_ *
+//								/*input*/
+//								input_[in * in_width_ * in_height_ + (h_ + y_) *
+//								in_width_ + (x_ + w_)] *
+//								/*next layer err terms*/
+//								this->next->g_[tt]
+//								/*weight momentum*/
+//								+ lambda_ * deltaW_[target];
+//
+//							W_[target] += delta;
+//							/*update momentum*/
+//							deltaW_[target] = delta;
+//						}
+//					}
+//					b_[tt] += alpha_ * this->next->g_[tt];
+//				}
+//			}
+//		}
+//	}
+//}
 
-__global__ void cnnMaxpoolingLayerForward(){}
+
+__global__ void cnnConvLayerErrorTerms(const float* input, const float* W, 
+	const float* next_err_terms, float* err_terms, const float* kernel)
+{
+	int e_id = (blockIdx.y + threadIdx.y) * in_width + blockIdx.x + threadIdx.x;
+	err_terms[e_id]
+		+= kernel[threadIdx.x + threadIdx.y * kernel_width]
+		*
+		next_err_terms[blockIdx.y * out_width + blockIdx.x]
+		* /*df sigmod*/
+		input[e_id] * (1.0 - input[e_id]);
+}
+
+
+__global__ void cnnConvolutionalLayerBackProp(const float* input, float* output)
+{
+
+}
+
+inline __device__ float f_max(const float l, const float r){
+	return l > r ? l : r;
+}
+
+__global__ void cnnMaxpoolingLayerForward(const float* input, float* output)
+{
+	int out_x = threadIdx.x;
+	int out_y = threadIdx.y;
+	float lu = input[2 * out_x + 2 * out_y * in_width];
+	float ru = input[2 * out_x + 2 * out_y * in_width + 1];
+	float ld = input[2 * out_x + (2 * out_y + 1) * in_width];
+	float rd = input[2 * out_x + 1 + (2 * out_y + 1) * in_width];
+
+	output[out_x + out_y * out_width] = f_max(rd, f_max(ld, f_max(lu, ru)));
+}
 
 __global__ void cnnMaxpoolingLayerBackProp(){}
 
