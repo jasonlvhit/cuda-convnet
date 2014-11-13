@@ -236,30 +236,31 @@ __global__ void convolution(const float* input, const float* W, float * output){
 //	}
 //}
 
-
-__global__ void cnnConvLayerErrorTerms(const float* input, const float* W, 
-	const float* next_err_terms, float* err_terms, const float* kernel)
+__global__ void cnnConvolutionalLayerBackProp(const float* input, const float* W,
+const float* next_err_terms, float* err_terms, float* kernel, float* b)
 {
 	int e_id = (blockIdx.y + threadIdx.y) * in_width + blockIdx.x + threadIdx.x;
+	int k_id = threadIdx.x + threadIdx.y * kernel_width;
+	int o_id = blockIdx.y * out_width + blockIdx.x;
+	/*err terms*/
 	err_terms[e_id]
-		+= kernel[threadIdx.x + threadIdx.y * kernel_width]
+		+= kernel[k_id]
 		*
-		next_err_terms[blockIdx.y * out_width + blockIdx.x]
+		next_err_terms[o_id]
 		* /*df sigmod*/
 		input[e_id] * (1.0 - input[e_id]);
-}
-
-
-__global__ void cnnConvolutionalLayerBackProp(const float* input, float* output)
-{
-
+	/*update weights*/
+	kernel[k_id] += alpha *
+		next_err_terms[o_id]
+		* input[e_id];
+	b[o_id] += alpha * next_err_terms[o_id];
 }
 
 inline __device__ float f_max(const float l, const float r){
 	return l > r ? l : r;
 }
 
-__global__ void cnnMaxpoolingLayerForward(const float* input, float* output)
+__global__ void cnnMaxpoolingLayerForward(const float* input, float* output, int* index)
 {
 	int out_x = threadIdx.x;
 	int out_y = threadIdx.y;
@@ -267,10 +268,41 @@ __global__ void cnnMaxpoolingLayerForward(const float* input, float* output)
 	float ru = input[2 * out_x + 2 * out_y * in_width + 1];
 	float ld = input[2 * out_x + (2 * out_y + 1) * in_width];
 	float rd = input[2 * out_x + 1 + (2 * out_y + 1) * in_width];
+	
+	int o_id = out_x + out_y * out_width;
+	float max = lu;
+	int i = 0;
+	if (ru > max){
+		max = ru, i = 1;
+	}
+	if (ld > max){
+		max = ld, i = 2;
+	}
+	if (rd > max){
+		max = rd, i = 3;
+	}
 
-	output[out_x + out_y * out_width] = f_max(rd, f_max(ld, f_max(lu, ru)));
+	output[o_id] = max;
+	index[o_id] = i;
 }
 
-__global__ void cnnMaxpoolingLayerBackProp(){}
+__global__ void cnnMaxpoolingLayerBackProp(int* index, const float* next_err_terms, 
+	float* err_terms){
+	int out_x = threadIdx.x;
+	int out_y = threadIdx.y;
+	int o_id = out_x + out_y * out_width;
+	if (index[o_id] == 0){
+		err_terms[2 * out_x + 2 * out_y * in_width] = next_err_terms[o_id];
+	}
+	else if (index[o_id] == 1){
+		err_terms[2 * out_x + 2 * out_y * in_width + 1] = next_err_terms[o_id];
+	}
+	else if (index[o_id] == 2){
+		err_terms[2 * out_x + (2 * out_y + 1) * in_width] = next_err_terms[o_id];
+	}
+	else if (index[o_id] == 3){
+		err_terms[2 * out_x + 1 + (2 * out_y + 1) * in_width] = next_err_terms[o_id];
+	}
+}
 
 #endif
