@@ -13,10 +13,10 @@ struct cnnBaseDataDescriptor{
 	size_t out_depth;
 	size_t out_area;
 
-	std::vector<float_t> input;
-	std::vector<float_t> W;
-	std::vector<float_t> b;
-	std::vector<float_t> output;
+	float* input;
+	float* W;
+	float* b;
+	float* output;
 
 	float_t alpha;
 	float_t lambda;
@@ -34,6 +34,10 @@ struct cnnFullyConnectedLayerDataDescriptor :public cnnBaseDataDescriptor
 	cnnFullyConnectedLayerDataDescriptor(size_t in_width_, size_t in_height_, size_t in_depth_, size_t out_width_,
 		size_t out_height_, size_t out_depth_) :
 		cnnBaseDataDescriptor(in_width_, in_height_, in_depth_, out_width_, out_height_, out_depth_)
+	{}
+
+	cnnFullyConnectedLayerDataDescriptor(size_t in_depth_, size_t out_depth_) :
+		cnnBaseDataDescriptor(1, 1, in_depth_, 1, 1, out_depth_)
 	{}
 };
 

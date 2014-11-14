@@ -1,9 +1,14 @@
 
+#include <vector>
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "math_functions.h"
 
 #include "data_descriptor.cuh"
+#include "mnist_parser.cuh"
+using namespace std;
+
 #define KERNEL_WIDTH 5
 #define threadsPerBlock 1024
 __constant__ int out_area, in_area;
@@ -32,6 +37,73 @@ __global__ void convolution(const float* input, const float* W, float * output){
 	if (cache_id == 0 && out_id < out_area) {	
 		output[out_id] += cache[0];
 	}
+}
+
+
+void train()
+{
+	vector<vector<float> > train_x;
+	vector<float> train_y;
+	LOAD_MNIST_TRAIN(train_x, train_y);
+
+	float x[60000][28 * 28];
+	float y[60000];
+
+	for (int i = 0; i < train_x.size(); i++){
+		for (int j = 0; j < train_x[i].size(); j++){
+			x[i][j] = train_x[i][j];
+		}
+		y[i] = train_y[i];
+	}
+
+	float **d_x, *d_y;
+	
+	/*cnnConvolutionalLayerDataDescriptor *C1 = new cnnConvolutionalLayerDataDescriptor(28, 28, 1, 6, 5, 5);
+	cnnMaxPoolingLayerDataDescriptor *S2 = new cnnMaxPoolingLayerDataDescriptor(24, 24, 6);
+	cnnConvolutionalLayerDataDescriptor *C3 = new cnnConvolutionalLayerDataDescriptor(12, 12, 6, 100, 12, 12);
+	cnnFullyConnectedLayerDataDescriptor *F4 = new cnnFullyConnectedLayerDataDescriptor(100, 10);*/
+
+
+
+	cudaMalloc((void**)d_x, sizeof(float) * 60000 * 28 * 28);
+	cudaMalloc((void**)d_y, sizeof(float) * 60000);
+
+	float* d_C1_input, *d_C1_output, *d_C1_W, *d_C1_b, *d_C1_err_terms;
+	float *d_S2_input, *d_S2_output, *d_S2_err_terms;
+	float *d_C3_input, *d_C3_output, *d_C3_W, *d_C3_b, *d_C3_err_terms;
+	float *d_F4_input, *d_F4_output, *d_F4_W, *d_F4_b, *d_F4_err_terms;
+	float *d_O_input, *d_O_err_terms;
+
+	cudaMalloc((void**)d_C1_input, sizeof(float) * 28 * 28);
+	cudaMalloc((void**)d_C1_output, sizeof(float) * 24 * 24 * 6);
+	cudaMalloc((void**)d_C1_W, sizeof(float) * 5 * 5 * 6);
+	cudaMalloc((void**)d_C1_b, sizeof(float) * 24 * 24 * 6);
+	cudaMalloc((void**)d_C1_err_terms, sizeof(float) * 28 * 28);
+
+	cudaMalloc((void**)d_S2_input, sizeof(float) * 24 * 24 * 6);
+	cudaMalloc((void**)d_S2_output, sizeof(float) * 12 * 12 * 6);
+	cudaMalloc((void**)d_S2_err_terms, sizeof(float) * 24 * 24 * 6);
+
+	cudaMalloc((void**)d_C3_input, sizeof(float) * 12 * 12 * 6);
+	cudaMalloc((void**)d_C3_output, sizeof(float) * 1 * 1 * 100);
+	cudaMalloc((void**)d_C3_W, sizeof(float) * 12 * 12 * 6 * 100);
+	cudaMalloc((void**)d_C3_b, sizeof(float)* 1 * 1 * 100);
+	cudaMalloc((void**)d_C3_err_terms, sizeof(float) * 12 * 12 * 6);
+	
+	cudaMalloc((void**)d_F4_input, sizeof(float) * 100);
+	cudaMalloc((void**)d_F4_output, sizeof(float) * 10);
+	cudaMalloc((void**)d_F4_W, sizeof(float) * 100 * 10);
+	cudaMalloc((void**)d_F4_b, sizeof(float) * 10);
+	cudaMalloc((void**)d_F4_err_terms, sizeof(float) * 100);
+
+	cudaMalloc((void**)d_O_err_terms, sizeof(float) * 10);
+	cudaMalloc((void**)d_O_input, sizeof(float) * 10);
+
+	cudaMemcpy(d_x, x, sizeof(float) * 60000 * 28 * 28, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y, y, sizeof(float) * 60000, cudaMemcpyHostToDevice);
+
+	
+
 }
 
 int main()
